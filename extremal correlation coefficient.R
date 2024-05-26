@@ -123,3 +123,85 @@ ecc<-function (x, y, idx){
   temp/sqrt(tempx*tempy)
 }   
 
+##########################
+### Data Example - ETF ###
+##########################
+
+# 1=Xly
+# 2=Xlp
+# 3=Xle
+# 4=Xlf
+# 5=Xlv
+# 6=Xli
+# 7=Xlb
+# 8=Xlk
+# 9=Xlu
+
+# Tail index estimation
+for (i in 1:9) {
+  
+  dt=Y[i,,]-rowMeans(Y[i,,])
+  
+  dtx = apply(dt, 2, function (x) sqrt(sum(x^2)))
+  print(round(c(i, mindist(dtx, method = "ks")$tail.index),1))
+}
+
+# Pairwise ECC 
+
+res<-matrix(0,9,9)
+
+for (i in 1:8) {
+  
+  for (j in (i+1):9) {
+    
+    Xdt=Y[i,,]-rowMeans(Y[i,,])
+    Ydt=Y[j,,]-rowMeans(Y[j,,])
+    
+    N=dim(Xdt)[2]
+    J=dim(Xdt)[1]
+    
+    # Marginal tail estimates
+    Xalpha=mindist(apply(Xdt, 2, function (x) sqrt(sum(x^2))), method = "ks")$tail.index
+    Yalpha=mindist(apply(Ydt, 2, function (x) sqrt(sum(x^2))), method = "ks")$tail.index
+    
+    new_Xdt=NA
+    new_Ydt=NA
+    
+    Xr = apply(Xdt, 2, function (x) sqrt(sum(x^2)))
+    Yr = apply(Ydt, 2, function (x) sqrt(sum(x^2)))
+    
+    new_Xdt=Xdt/matrix(rep(Xr^{1-Xalpha/2.5},J),J,N,byrow=TRUE)
+    new_Ydt=Ydt/matrix(rep(Yr^{1-Yalpha/2.5},J),J,N,byrow=TRUE)
+    # Compute rhohat_{XY}
+    rx = apply(new_Xdt, 2, function (x) sqrt(sum(x^2)))
+    ry = apply(new_Ydt, 2, function (x) sqrt(sum(x^2)))
+    
+    rxy = apply(cbind(rx,ry),1, max)
+    rrank = length(rxy)-rank(rxy)+1
+    
+    # find an optimal k
+    k=mindist(rxy, method = "ks")$k0
+    
+    idx = which(rrank <= k)
+    rk=rxy[rrank==k]
+    
+    temp=0
+    tempx=0
+    tempy=0
+    for (k in 1:length(idx)) {
+      temp=temp + sum(new_Xdt[,idx[k]]*new_Ydt[,idx[k]])
+      tempx=tempx + sum(new_Xdt[,idx[k]]*new_Xdt[,idx[k]])
+      tempy=tempy + sum(new_Ydt[,idx[k]]*new_Ydt[,idx[k]])
+    }
+    
+    res[i,j]<-round(temp/sqrt(tempx*tempy),2)
+    
+  }
+  
+}
+
+colnames(res)<-c("XLY","XLP","XLE","XLF","XLV","XLI","XLB","XLK","XLU")
+
+library(corrplot)
+corrplot(res, method = 'color', type="upper", col = COL2(n=200), cl.length = 21, tl.pos = 'd', tl.col = "black",
+         addCoef.col = 'white')
